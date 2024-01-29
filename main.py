@@ -23,7 +23,6 @@ def main():
     def iterfile():  # 
         with open(some_file_path, mode="rb") as file_like:  # 
             yield from file_like  # 
-
     return StreamingResponse(iterfile(), media_type="video/mp4")    
 
 
