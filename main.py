@@ -15,9 +15,8 @@ some_file_path = "static/upload/alprVideo.mp4"
 
 @app.post("/alprd")
 async def get_alprd(request: Request):
-    request_body = await request.body()
-    result = await request.json()  
-    print((result["uuid"]))
+    alpr_data = await request.json()  
+    print((alpr_data["uuid"]))
 
 
 
