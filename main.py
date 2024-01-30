@@ -5,17 +5,19 @@ from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, Request
 from typing import Any, Dict, AnyStr, List, Union
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
-grocery_list: dict[int, ItemPayload] = {}
 some_file_path = "static/upload/alprVideo.mp4"
 
 @app.post("/alprd")
-async def root(request: Request):
+async def get_alprd(request: Request):
     request_body = await request.body()
-    print(request_body)
+    result = await request.json()  
+    print((result["uuid"]))
 
 
 
