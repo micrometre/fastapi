@@ -32,9 +32,15 @@ async def get_alprd(request: Request):
         )
     redis_client.hset("alpr_plate_to_id", alpr_plate, alpr_id)
     print((alpr_plate))
+    return(alpr_plate)
 
-
-
+# Route to list a specific item by ID but using Redis
+@app.get("/alprs/{alpr_id}")
+def list_item(item_id: int) -> dict[str, dict[str, str]]:
+    if not redis_client.hexists(f"alpr_id:{item_id}", "alpr_id"):
+        raise HTTPException(status_code=404, detail="Item not found.")
+    else:
+        return {"alpr": redis_client.hgetall(f"alpr_id:{item_id}")}
 
 @app.get("/video")
 def main():
