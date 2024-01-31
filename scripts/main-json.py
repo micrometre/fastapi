@@ -7,31 +7,16 @@ from fastapi import FastAPI, Request
 from typing import Any, Dict, AnyStr, List, Union
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-import redis
-from models import ItemPayload
+
 
 app = FastAPI()
-redis_client = redis.StrictRedis(host="0.0.0.0", port=6379, db=0, decode_responses=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 some_file_path = "static/upload/alprVideo.mp4"
 
 @app.post("/alprd")
 async def get_alprd(request: Request):
     alpr_data = await request.json()  
-    alpr_uuid = alpr_data["uuid"]
-    alpr_plate_results = alpr_data["results"]
-    alpr_plate = alpr_plate_results[0]["plate"]
-    alpr_id = redis_client.incr("item_ids")
-    redis_client.hset(
-            f"item_id:{alpr_id}",
-            mapping={
-                "item_id": alpr_id,
-                "item_name": alpr_uuid,
-                "item_name": alpr_plate,
-            },
-        )
-    redis_client.hset("item_name_to_id", alpr_plate, alpr_id)
-    print((alpr_plate))
+    print((alpr_data["uuid"]))
 
 
 
