@@ -26,7 +26,7 @@ async def get_alprd(request: Request):
             f"item_id:{alpr_id}",
             mapping={
                 "item_id": alpr_id,
-                "item_name": alpr_uuid,
+                "item_uuid": alpr_uuid,
                 "item_name": alpr_plate,
             },
         )
