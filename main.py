@@ -21,16 +21,16 @@ async def get_alprd(request: Request):
     alpr_uuid = alpr_data["uuid"]
     alpr_plate_results = alpr_data["results"]
     alpr_plate = alpr_plate_results[0]["plate"]
-    alpr_id = redis_client.incr("item_ids")
+    alpr_id = redis_client.incr("alpr_ids")
     redis_client.hset(
-            f"item_id:{alpr_id}",
+            f"alpr_id:{alpr_id}",
             mapping={
-                "item_id": alpr_id,
-                "item_uuid": alpr_uuid,
-                "item_name": alpr_plate,
+                "alpr_id": alpr_id,
+                "alpr_uuid": alpr_uuid,
+                "alpr_plate": alpr_plate,
             },
         )
-    redis_client.hset("item_name_to_id", alpr_plate, alpr_id)
+    redis_client.hset("alpr_plate_to_id", alpr_plate, alpr_id)
     print((alpr_plate))
 
 
