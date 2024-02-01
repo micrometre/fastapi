@@ -10,13 +10,13 @@ from fastapi.responses import JSONResponse
 import redis
 import asyncio
 from sse_starlette.sse import EventSourceResponse
-import time
 
 from models import ItemPayload
 logger = logging.getLogger()
 
 some_file_path = "static/upload/alprVideo.mp4"
-
+MESSAGE_STREAM_DELAY = 1  # second
+MESSAGE_STREAM_RETRY_TIMEOUT = 15000  # milisecond
 app = FastAPI()
 redis_client = redis.StrictRedis(host="0.0.0.0", port=6379, db=0, decode_responses=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -29,6 +29,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+COUNTER = 0
+
+def get_message():
+    global COUNTER
+    COUNTER += 1
+    return COUNTER, COUNTER < 21
+
+@app.get("/stream")
+async def message_stream(request: Request):
+    async def event_generator():
+        while True:
+            if await request.is_disconnected():
+                logger.debug("Request disconnected")
+                break
+            counter, exists = get_message()
+            if exists:
+                yield {
+                    "event": "new_message",
+                    "id": "message_id",
+                    "retry": MESSAGE_STREAM_RETRY_TIMEOUT,
+                    "data": f"Counter value {counter}",
+                }
+            else:
+                yield {
+                    "event": "end_event",
+                    "id": "message_id",
+                    "retry": MESSAGE_STREAM_RETRY_TIMEOUT,
+                    "data": "End of the stream",
+                }
+            await asyncio.sleep(MESSAGE_STREAM_DELAY)
+    return EventSourceResponse(event_generator())
 
 
 @app.post("/alprd")
@@ -47,7 +78,6 @@ async def get_alprd(request: Request):
             },
         )
     redis_client.hset("alpr_plate_to_id", alpr_plate, alpr_id)
-    redis_client.publish("bigboxcode", alpr_plate)
     print((alpr_plate))
     return(alpr_plate)
 
