@@ -1,83 +1,67 @@
-import os
-
+import logging
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, Request
+from typing import Any, Dict, AnyStr, List, Union
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse
 import redis
-from fastapi import FastAPI, HTTPException, Request
+import asyncio
+from sse_starlette.sse import EventSourceResponse
+import time
 
 from models import ItemPayload
+logger = logging.getLogger()
+
+some_file_path = "static/upload/alprVideo.mp4"
 
 app = FastAPI()
-
 redis_client = redis.StrictRedis(host="0.0.0.0", port=6379, db=0, decode_responses=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 
-
-
-# Route to add an item
-@app.post("/items/{item_name}/{quantity}")
-def add_item(item_name: str, quantity: int) -> dict[str, ItemPayload]:
-    if quantity <= 0:
-        raise HTTPException(status_code=400, detail="Quantity must be greater than 0.")
-
-    # Check if item already exists
-    item_id_str: str | None = redis_client.hget("item_name_to_id", item_name)
-
-    if item_id_str is not None:
-        item_id = int(item_id_str)
-        quantity = redis_client.hincrby(f"item_id:{item_id}", "quantity", quantity)
-    else:
-        # Generate an id for the item
-        item_id: int = redis_client.incr("item_ids")
-        redis_client.hset(
-            f"item_id:{item_id}",
+@app.post("/alprd")
+async def get_alprd(request: Request):
+    alpr_data = await request.json()  
+    alpr_uuid = alpr_data["uuid"]
+    alpr_plate_results = alpr_data["results"]
+    alpr_plate = alpr_plate_results[0]["plate"]
+    alpr_id = redis_client.incr("alpr_ids")
+    redis_client.hset(
+            f"alpr_id:{alpr_id}",
             mapping={
-                "item_id": item_id,
-                "item_name": item_name,
-                "quantity": quantity,
+                "alpr_id": alpr_id,
+                "alpr_uuid": alpr_uuid,
+                "alpr_plate": alpr_plate,
             },
         )
-        # Create a set so we can search by name too
-        redis_client.hset("item_name_to_id", item_name, item_id)
+    redis_client.hset("alpr_plate_to_id", alpr_plate, alpr_id)
+    redis_client.publish("bigboxcode", alpr_plate)
+    print((alpr_plate))
+    return(alpr_plate)
 
-    return {
-        "item": ItemPayload(item_id=item_id, item_name=item_name, quantity=quantity)
-    }
-
-
-# Route to list a specific item by id but using Redis
-@app.get("/items/{item_id}")
+# Route to list a specific item by ID but using Redis
+@app.get("/alprs/{alpr_id}")
 def list_item(item_id: int) -> dict[str, dict[str, str]]:
-    if not redis_client.hexists(f"item_id:{item_id}", "item_id"):
+    if not redis_client.hexists(f"alpr_id:{item_id}", "alpr_id"):
         raise HTTPException(status_code=404, detail="Item not found.")
     else:
-        return {"item": redis_client.hgetall(f"item_id:{item_id}")}
+        return {"alpr": redis_client.hgetall(f"alpr_id:{item_id}")}
 
-
-@app.get("/items")
-def list_items() -> dict[str, list[ItemPayload]]:
-    items: list[ItemPayload] = []
-    stored_items: dict[str, str] = redis_client.hgetall("item_name_to_id")
-
-    for name, id_str in stored_items.items():
-        item_id: int = int(id_str)
-
-        item_name_str: str | None = redis_client.hget(f"item_id:{item_id}", "item_name")
-        if item_name_str is not None:
-            item_name: str = item_name_str
-        else:
-            continue  # skip this item if it has no name
-
-        item_quantity_str: str | None = redis_client.hget(
-            f"item_id:{item_id}", "quantity"
-        )
-        if item_quantity_str is not None:
-            item_quantity: int = int(item_quantity_str)
-        else:
-            item_quantity = 0
-
-        items.append(
-            ItemPayload(item_id=item_id, item_name=item_name, quantity=item_quantity)
-        )
-
-    return {"items": items}
-
+@app.get("/video")
+def main():
+    def iterfile():  # 
+        with open(some_file_path, mode="rb") as file_like:  # 
+            yield from file_like  # 
+    return StreamingResponse(iterfile(), media_type="video/mp4")    
