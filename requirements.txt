@@ -6,3 +6,4 @@ jinja2
 redis
 sse-starlette
 asyncio
+python-multipart
