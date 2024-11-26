@@ -1,55 +1,56 @@
-import logging
-import shutil
+from fastapi import FastAPI
 from fastapi import FastAPI, HTTPException
+import redis
+from models import ItemPayload
 from fastapi.responses import StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi import FastAPI, Request
+from typing import Any, Dict, AnyStr, List, Union
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-import redis
-import asyncio
-from sse_starlette.sse import EventSourceResponse
-import time
-import asyncio
-import uvicorn
-from sse_starlette.sse import EventSourceResponse
-from fastapi import FastAPI, Request
-from typing import Annotated
-
-from fastapi import  File, UploadFile
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI, HTTPException
+from models import ItemPayload, Item, Plate
 
 
-from models import ItemPayload
-logger = logging.getLogger()
-
-some_file_path = "static/upload/alprVideo.mp4"
-
-app = FastAPI(debug=True) # type: ignore
-redis_client = redis.StrictRedis(host="0.0.0.0", port=6379, db=0, decode_responses=True)
+app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
+some_file_path = "static/upload/alprVideo.mp4"
+redis_client = redis.StrictRedis(host='0.0.0.0', port=6379, db=0, decode_responses=True)
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+@app.post("/items/")
+async def create_item1(item: Item):
+    return item
 
 
-@app.post('/upload')
-def upload_file(uploaded_file: UploadFile = File(...)):
-    path = f"static/upload/{uploaded_file.filename}"
-    print({uploaded_file.filename})
-    with open(path, 'w+b') as file:
-        shutil.copyfileobj(uploaded_file.file, file)
 
-    return {
-        'file': uploaded_file.filename,
-        'content': uploaded_file.content_type,
-        'path': path,
-    }    
+@app.post("/plates/")
+async def create_item(plate: Plate):
+    return plate
+
+@app.post("/alprd2")
+async def get_alprd(request: Request):
+    alpr_data = await request.json()  
+    alpr_plate_results = alpr_data["results"]
+    alpr_plate = alpr_plate_results[0]["plate"]
+    alpr_id = redis_client.incr("alpr_ids")
+    redis_client.hset(
+            f"alpr_id:{alpr_id}",
+            mapping={
+                "alpr_plate": alpr_plate,
+            },
+        )
+    redis_client.hset("alpr_plate_to_id", alpr_plate, alpr_id)
+    redis_client.publish("bigboxcode", alpr_plate)
+    print((alpr_data))
+
+
+
+
+
+
+@app.get("/video")
+def steam_video():
+    def iterfile():  # 
+        with open(some_file_path, mode="rb") as file_like:  # 
+            yield from file_like  # 
+    return StreamingResponse(iterfile(), media_type="video/mp4")    
